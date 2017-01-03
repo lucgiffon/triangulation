@@ -22,7 +22,6 @@ class TriangleTracker(nx.DiGraph):
         :param p_node: Used for recursion
         :return: The triangle containing the vertex
         """
-        # TODO this should return a list: if the node is on an edge, there can be 2 triangles containing the node.
         if p_node is None:
             # get the triangle at the top of the tree: the big triangle.
             triangles = (x for x in self.nodes_iter() if self.in_degree(x) == 0)
@@ -30,18 +29,18 @@ class TriangleTracker(nx.DiGraph):
             # get the next triangles for the topdown analysis.
             triangles = self.successors_iter(p_node)
 
-        returned_triangles = []
+        returned_triangles = set()
         for triangle in triangles:
             if triangle.contains(node):
                 # We are looking for the tighest triangles, if the triangle has successors,
                 #  it means that it have been splitted
                 if self.successors(triangle):
                     # recursion
-                    returned_triangles = self.get_triangle_containing_node(node, p_node=triangle)
+                    returned_triangles = returned_triangles.union(set(self.get_triangle_containing_node(node, p_node=triangle)))
                 else:
                     # there is no successor: the current triangle is the tightest triangle found
-                    returned_triangles.append(triangle)
-        return returned_triangles
+                    returned_triangles.add(triangle)
+        return list(returned_triangles)
 
     def get_triangles_containing_edge(self, edge):
         """

@@ -1,3 +1,5 @@
+from math import sqrt
+
 class Triangle:
     def __init__(self, p1, p2, p3):
         self.vertices = [p1, p2, p3]
@@ -8,15 +10,19 @@ class Triangle:
     def __iter__(self):
         return iter(self.vertices)
 
-    def contains(self, node):
-        def sign(p1, p2, p3):
-            return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)
+    def contains(self, p):
 
-        b1 = sign(node, self.vertices[0], self.vertices[1]) <= 0.0
-        b2 = sign(node, self.vertices[1], self.vertices[2]) <= 0.0
-        b3 = sign(node, self.vertices[2], self.vertices[0]) <= 0.0
+        p1 = self.vertices[0]
+        p2 = self.vertices[1]
+        p3 = self.vertices[2]
 
-        return (b1 == b2) and (b2 == b3)
+        alpha = ((p2.y - p3.y) * (p.x - p3.x) + (p3.x - p2.x) * (p.y - p3.y)) / ((p2.y - p3.y) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.y - p3.y))
+
+        beta = ((p3.y - p1.y) * (p.x - p3.x) + (p1.x - p3.x) * (p.y - p3.y)) / ((p2.y - p3.y) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.y - p3.y))
+
+        gamma = 1.0 - alpha - beta
+
+        return alpha >= 0 and beta >= 0 and gamma >= 0
 
     def __repr__(self):
         return "\t".join(["(%s, %s)" % (v.x, v.y) for v in self.vertices])

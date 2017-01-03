@@ -1,5 +1,5 @@
 class Node:
-    def __init__(self, x, y, ident):
+    def __init__(self, x, y, ident=None):
         """
         Node of the graph constitued by x and y coordinates and an index:
 

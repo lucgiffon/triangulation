@@ -28,33 +28,53 @@ from triangle import Triangle
 from triangle_tracker import TriangleTracker
 
 
-class Triangulator(nx.Graph):
-    def __init__(self, x, y, bound=None):
+class Triangulator:
+    def __init__(self, bound):
         """
         Initialize the triangulator with x and y coordinates of all vertices of the graph.
 
         :param bound: Indicate the maximum absolute value of x and y of dots in the graph.
         """
-
-        assert len(x) == len(y)
-
         super().__init__()
         self.__bound = bound
 
-        # DAG which will keep track of triangles created and splitted into new triangles.
-        self.__tracker = TriangleTracker()
+        self.__nodes = [Node(*(self.__bound * 3 * np.array((-1, -1)))),
+                        Node(*(self.__bound * 3 * np.array((1, -1)))),
+                        Node(*(self.__bound * 3 * np.array((1, 1)))),
+                        Node(*(self.__bound * 3 * np.array((-1, +1))))]
 
-        for i in range(len(x)):
-            new_node = Node(x[i], y[i], i + 1)
-            self.add_node(new_node)
+        # Create the first two triangles
+        # The triangle is defined by its angles
+        t1 = Triangle(self.__nodes[0], self.__nodes[1], self.__nodes[3])
+        t2 = Triangle(self.__nodes[2], self.__nodes[3], self.__nodes[1])
 
-        if self.__bound is None:
-            self.__bound = max([max((math.fabs(n.x), math.fabs(n.y))) for n in self.nodes_iter()])
+        # Dict which keep track of triangles
+        self.__tracker = dict()
+
+        # Add the two triangles to the tracker
+        # The tracker is indexed by the tuples representing the triangles
+        # The values for each triangle are [opposite triangle toward edge 1, // edge 2, // edge 3]
+        self.__tracker[t1] = [t2, None, None]
+        self.__tracker[t2] = [t1, None, None]
+
+        # https://en.wikipedia.org/wiki/Bowyer%E2%80%93Watson_algorithm
+        # https://github.com/jmespadero/pyDelaunay2D/
+        # https://en.wikipedia.org/wiki/Quadtree#Point_quadtree
+        # https://github.com/karimbahgat/Pyqtree
 
     def plot(self):
-        plt.plot([node.x for node in self.nodes()], [node.y for node in self.nodes()], 'o')
-        for e in self.edges():
-            plt.plot([e[0].x, e[1].x], [e[0].y, e[1].y])
+        plt.plot([node.x for node in self.__nodes], [node.y for node in self.__nodes], 'o')
+        for triangle in self.__tracker:
+             plt.plot([triangle[0].x,
+                       triangle[1].x,
+                       triangle[2].x,
+                       triangle[0].x],
+
+                      [triangle[0].y,
+                       triangle[1].y,
+                       triangle[2].y,
+                       triangle[0].y]
+                      )
 
     def legalize_edge(self, new_node, edge):
         """
@@ -153,6 +173,12 @@ class Triangulator(nx.Graph):
             else:
                 raise Exception("There is an unhandled case in the method Triangulator.is_edge_illegal()")
         # return False
+
+    def add_node(self, node):
+        node = np.asarray(node)
+        node_index = len(self.__nodes)
+
+        self.__nodes.append(node)
 
     def delaunay_triangulation(self):
         """
@@ -253,29 +279,34 @@ if __name__ == "__main__":
         x[i] = random.uniform(-BOUND, BOUND)
         y[i] = random.uniform(-BOUND, BOUND)
 
-    triangulation = Triangulator(x, y, bound=BOUND)
-
-    triangulation.delaunay_triangulation()
+    triangulation = Triangulator(BOUND)
 
     plt.subplot(111).set_xlim([-3 * BOUND * 1.5, 3 * BOUND * 1.5])
     plt.subplot(111).set_ylim([-3 * BOUND * 1.5, 3 * BOUND * 1.5])
     plt.gca().set_aspect('equal', adjustable='box')
+
     triangulation.plot()
     plt.show()
 
-    #############################################################
-    # # # # # test code in order to compare the results # # # # #
-    #############################################################
-    if SHOW_EXAMPLE:
-        cens,edg,tri,neig = triang.delaunay(x,y)
-        for t in tri:
-           # t[0], t[1], t[2] are the points indexes of the triangle
-           t_i = [t[0], t[1], t[2], t[0]]
-           # #!print(x[t_i])
-           plt.plot(x[t_i], y[t_i])
+    # triangulation.delaunay_triangulation()
+    #
 
-        plt.subplot(111).set_xlim([-3 * BOUND * 1.5, 3 * BOUND * 1.5])
-        plt.subplot(111).set_ylim([-3 * BOUND * 1.5, 3 * BOUND * 1.5])
-        plt.gca().set_aspect('equal', adjustable='box')
-        plt.plot(x, y, 'o')
-        plt.show()
+    # triangulation.plot()
+    # plt.show()
+    #
+    # #############################################################
+    # # # # # # test code in order to compare the results # # # # #
+    # #############################################################
+    # if SHOW_EXAMPLE:
+    #     cens,edg,tri,neig = triang.delaunay(x,y)
+    #     for t in tri:
+    #        # t[0], t[1], t[2] are the points indexes of the triangle
+    #        t_i = [t[0], t[1], t[2], t[0]]
+    #        # #!print(x[t_i])
+    #        plt.plot(x[t_i], y[t_i])
+    #
+    #     plt.subplot(111).set_xlim([-3 * BOUND * 1.5, 3 * BOUND * 1.5])
+    #     plt.subplot(111).set_ylim([-3 * BOUND * 1.5, 3 * BOUND * 1.5])
+    #     plt.gca().set_aspect('equal', adjustable='box')
+    #     plt.plot(x, y, 'o')
+    #     plt.show()
