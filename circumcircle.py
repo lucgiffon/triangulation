@@ -9,12 +9,9 @@ import random
 
 class CircumCircle:
     def __init__(self, A, B, C):
-        self.__A = A
-        self.__B = B
-        self.__C = C
-
-        self.center = self.circumcenter(self.__A, self.__B, self.__C)
-        self.radius = self.circumradius(self.__A, self.__B, self.__C)
+        self.center, self.radius = self.draw(A, B, C)
+        # self.center = self.circumcenter(A, B, C)
+        # self.radius = self.circumradius(A, B, C)
 
     # Distance between points A and B
     def distance(self, p1, p2):
@@ -24,9 +21,15 @@ class CircumCircle:
 
     # Cosine of angle p1-p2-p3
     def cosine(self, p1, p2, p3):
-        d1, d2, d3 = self.distance(p2, p3), self.distance(p1, p3), self.distance(p1, p2)
-        return (d1 * d1 + d3 * d3 - d2 * d2) / (2 * d1 * d3)
 
+        d1, d2, d3 = self.distance(p2, p3), self.distance(p1, p3), self.distance(p1, p2)
+        if d1 == 0:
+            print("d1", p2, p3)
+        if d3 == 0:
+            print("d3", p1, p2)
+        if d1 * d3 == 0:
+            print("d1*d3", p1, p2, p3)
+        return (d1 * d1 + d3 * d3 - d2 * d2) / (2 * d1 * d3)
 
     # Cartesian coordinates of the point whose barycentric coordinates
     # with respect to the triangle ABC are [p,q,r]
@@ -60,6 +63,30 @@ class CircumCircle:
         b = self.distance(A, C)
         c = self.distance(A, B)
         return (a * b * c)/math.sqrt((a+b+c) * (b+c-a) * (c+a-b) * (a+b-c))
+
+    def draw(self, A, B, C):
+        pts = np.asarray([np.asarray(p) for p in [A, B, C]])
+        pts2 = np.dot(pts, pts.T)
+        A = np.bmat([[2 * pts2, [[1],
+                                 [1],
+                                 [1]]],
+                     [[[1, 1, 1, 0]]]])
+
+        b = np.hstack((np.sum(pts * pts, axis=1), [1]))
+        x = np.linalg.solve(A, b)
+        bary_coords = x[:-1]
+        center = np.dot(bary_coords, pts)
+
+        radius = np.linalg.norm(pts[0] - center) # euclidean distance
+        # radius = math.sqrt(np.sum(np.square(pts[0] - center)))  # squared distance
+        return center, radius
+
+    def contains(self, p):
+        # using the pythagore theorem, we test if p lies inside the circumcircle
+        if (p[0] - self.center[0]) ** 2 + (p[1] - self.center[1]) ** 2 < self.radius ** 2:
+            return True
+        else:
+            return False
 
     def plot(self):
         # plt.subplot(111).plot([self.__A[0], self.__B[0], self.__C[0], self.__A[0]], [self.__A[1], self.__B[1], self.__C[1], self.__A[1]])

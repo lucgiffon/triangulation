@@ -15,12 +15,15 @@ Options:
 
 import math
 import random
+import copy
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
 import networkx as nx
 import matplotlib.delaunay as triang
 from docopt import docopt
+from pyqtree import Index
 
 import circumcircle
 from node import Node
@@ -38,43 +41,47 @@ class Triangulator:
         super().__init__()
         self.__bound = bound
 
-        self.__nodes = [Node(*(self.__bound * 3 * np.array((-1, -1)))),
-                        Node(*(self.__bound * 3 * np.array((1, -1)))),
-                        Node(*(self.__bound * 3 * np.array((1, 1)))),
-                        Node(*(self.__bound * 3 * np.array((-1, +1))))]
+        p1 = Node(*(self.__bound * 3 * np.array((-1, -1))))
+        p2 = Node(*(self.__bound * 3 * np.array((1, -1))))
+        p3 = Node(*(self.__bound * 3 * np.array((1, 1))))
+        p4 = Node(*(self.__bound * 3 * np.array((-1, +1))))
+        self.__initializing_nodes = [p1, p2, p3, p4]
 
-        # Create the first two triangles
+        self.__nodes = copy.copy(self.__initializing_nodes)
+
+        # Create the first two ccw triangles
         # The triangle is defined by its angles
         t1 = Triangle(self.__nodes[0], self.__nodes[1], self.__nodes[3])
         t2 = Triangle(self.__nodes[2], self.__nodes[3], self.__nodes[1])
 
         # Dict which keep track of triangles
         self.__tracker = dict()
+        self.__tracker_set = set()
 
         # Add the two triangles to the tracker
         # The tracker is indexed by the tuples representing the triangles
         # The values for each triangle are [opposite triangle toward edge 1, // edge 2, // edge 3]
         self.__tracker[t1] = [t2, None, None]
         self.__tracker[t2] = [t1, None, None]
+        self.__tracker_set.add(t1)
+        self.__tracker_set.add(t2)
 
+        self.__spindex = Index(bbox=(*(self.__bound * 3 * np.array((-1, -1))),
+                              *(self.__bound * 3 * np.array((1, 1)))))
+        self.__spindex.insert(t1, t1.bbox)
+        print(t1.bbox)
+        self.__spindex.insert(t2, t2.bbox)
         # https://en.wikipedia.org/wiki/Bowyer%E2%80%93Watson_algorithm
         # https://github.com/jmespadero/pyDelaunay2D/
         # https://en.wikipedia.org/wiki/Quadtree#Point_quadtree
         # https://github.com/karimbahgat/Pyqtree
 
     def plot(self):
-        plt.plot([node.x for node in self.__nodes], [node.y for node in self.__nodes], 'o')
+        plt.plot([node.x for node in self.__nodes if node not in self.__initializing_nodes],
+                 [node.y for node in self.__nodes if node not in self.__initializing_nodes], 'o')
         for triangle in self.__tracker:
-             plt.plot([triangle[0].x,
-                       triangle[1].x,
-                       triangle[2].x,
-                       triangle[0].x],
-
-                      [triangle[0].y,
-                       triangle[1].y,
-                       triangle[2].y,
-                       triangle[0].y]
-                      )
+            if len(set(triangle.vertices).intersection(set(self.__initializing_nodes))) == 0:
+                triangle.plot()
 
     def legalize_edge(self, new_node, edge):
         """
@@ -175,10 +182,85 @@ class Triangulator:
         # return False
 
     def add_node(self, node):
-        node = np.asarray(node)
-        node_index = len(self.__nodes)
+        node = Node(*node)
 
         self.__nodes.append(node)
+
+        # search triangle whose circumcircle contains p
+        # todo quad tree optimization
+        candidate_bad_designed_triangles = set(self.__spindex.intersect((node.x, node.x, node.y, node.y)))
+        # print(len(candidate_bad_designed_triangles.intersection(self.__tracker_set)), candidate_bad_designed_triangles.intersection(self.__tracker_set))
+        # print(len(self.__tracker_set))
+        bad_designed_triangles = []
+        for triangle in candidate_bad_designed_triangles.intersection(self.__tracker_set):
+        # for triangle in self.__tracker_set:
+            if triangle.circumcircle_contains(node):
+                bad_designed_triangles.append(triangle)
+
+        # Find the external CCW boundary (star shape) of the bad triangles,
+        # expressed as a list of edges (Node pairs) and the opposite
+        # Triangle to each edge.
+
+        # Initialization
+
+        external_ccw_boundary = []
+        bad_triangle = bad_designed_triangles[0]
+        edge = 0
+        while True:
+            # get the opposite triangle around the current edge and for the current triangle
+            opposite_triangle = self.__tracker[bad_triangle][edge]
+            # check if the edge is on the boundary by looking if the opposite triangle is also a bad triangle
+            if opposite_triangle not in bad_designed_triangles:
+                # an entry of external_ccw_triangle is like: (edge, opposite_triangle)
+                # edge being a pair of Nodes
+                external_ccw_boundary.append(((bad_triangle[(edge+1) % 3],
+                                               bad_triangle[(edge-1) % 3]),
+                                              opposite_triangle))
+                # look for next edge around the triangle
+                edge = (edge+1) % 3
+
+                # look if we went around the boundary of bad designed triangles
+                # by comparing the first node of the first edge to the last node of the last edge
+                if external_ccw_boundary[0][0][0] == external_ccw_boundary[-1][0][1]:
+                    break
+            else:
+                # Move to next CCW edge in opposite triangle
+                edge = (self.__tracker[opposite_triangle].index(bad_triangle) + 1) % 3
+                bad_triangle = opposite_triangle
+
+        # Remove the bad_designed_triangles
+        for triangle in bad_designed_triangles:
+            del self.__tracker[triangle]
+            self.__tracker_set.remove(triangle)
+
+        # Retriangulate the hole left by bad_triangles
+        new_triangles = []
+        for (edge, opposite_triangle) in external_ccw_boundary:
+            new_triangle = Triangle(node,
+                             edge[0],
+                             edge[1])
+            self.__tracker[new_triangle] = [opposite_triangle, None, None]
+            self.__tracker_set.add(new_triangle)
+            self.__spindex.insert(new_triangle, new_triangle.bbox)
+
+            # If the new_triangle is not at the boundary of the triangulation
+            if opposite_triangle is not None:
+                # set the new_triangle as neighbour of the opposite_triangle
+                for i, neighbour in enumerate(self.__tracker[opposite_triangle]):
+                    if neighbour is not None and neighbour.contains_edge(edge):
+                        # change link to use our new_triangle
+                        self.__tracker[opposite_triangle][i] = new_triangle
+
+            new_triangles.append(new_triangle)
+
+        N = len(new_triangles)
+        for i, triangle in enumerate(new_triangles):
+            self.__tracker[triangle][1] = new_triangles[(i+1) % N]
+            self.__tracker[triangle][2] = new_triangles[(i-1) % N]
+
+
+        # self.plot()
+        # plt.show()
 
     def delaunay_triangulation(self):
         """
@@ -273,18 +355,28 @@ if __name__ == "__main__":
     SHOW_EXAMPLE = arguments["--show-example"]
 
     # create triangulation
-    # create dots to triangulate
-    x, y = np.array(range(N)), np.array(range(N))
-    for i in range(N):
-        x[i] = random.uniform(-BOUND, BOUND)
-        y[i] = random.uniform(-BOUND, BOUND)
-
     triangulation = Triangulator(BOUND)
 
-    plt.subplot(111).set_xlim([-3 * BOUND * 1.5, 3 * BOUND * 1.5])
-    plt.subplot(111).set_ylim([-3 * BOUND * 1.5, 3 * BOUND * 1.5])
-    plt.gca().set_aspect('equal', adjustable='box')
+    # create dots to triangulate
+    X, Y = np.array(range(N)), np.array(range(N))
+    for i in range(N):
+        x = random.uniform(-BOUND, BOUND)
+        y = random.uniform(-BOUND, BOUND)
+        while (x in X and y in Y):
+            x = random.uniform(-BOUND, BOUND)
+            y = random.uniform(-BOUND, BOUND)
+        X[i] = x
+        Y[i] = y
 
+    start = time.time()
+    for i in range(N):
+        triangulation.add_node((X[i], Y[i]))
+    stop = time.time()
+    print("execution_time", stop - start)
+
+    plt.subplot(111).set_xlim([-BOUND * 1.1, BOUND * 1.1])
+    plt.subplot(111).set_ylim([-BOUND * 1.1, BOUND * 1.1])
+    plt.gca().set_aspect('equal', adjustable='box')
     triangulation.plot()
     plt.show()
 
@@ -294,19 +386,19 @@ if __name__ == "__main__":
     # triangulation.plot()
     # plt.show()
     #
-    # #############################################################
-    # # # # # # test code in order to compare the results # # # # #
-    # #############################################################
-    # if SHOW_EXAMPLE:
-    #     cens,edg,tri,neig = triang.delaunay(x,y)
-    #     for t in tri:
-    #        # t[0], t[1], t[2] are the points indexes of the triangle
-    #        t_i = [t[0], t[1], t[2], t[0]]
-    #        # #!print(x[t_i])
-    #        plt.plot(x[t_i], y[t_i])
-    #
-    #     plt.subplot(111).set_xlim([-3 * BOUND * 1.5, 3 * BOUND * 1.5])
-    #     plt.subplot(111).set_ylim([-3 * BOUND * 1.5, 3 * BOUND * 1.5])
-    #     plt.gca().set_aspect('equal', adjustable='box')
-    #     plt.plot(x, y, 'o')
-    #     plt.show()
+    #############################################################
+    # # # # # test code in order to compare the results # # # # #
+    #############################################################
+    if SHOW_EXAMPLE:
+        cens,edg,tri,neig = triang.delaunay(X, Y)
+        for t in tri:
+           # t[0], t[1], t[2] are the points indexes of the triangle
+           t_i = [t[0], t[1], t[2], t[0]]
+           # #!print(X[t_i])
+           plt.plot(X[t_i], Y[t_i])
+
+        plt.subplot(111).set_xlim([-BOUND * 1.5, BOUND * 1.5])
+        plt.subplot(111).set_ylim([-BOUND * 1.5, BOUND * 1.5])
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.plot(X, Y, 'o')
+        plt.show()
