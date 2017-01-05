@@ -42,9 +42,13 @@ class Triangle:
     def contains_edge(self, edge):
         return set(edge).issubset(set(self.vertices))
 
-    def plot(self):
-        plt.plot([v.x for v in self.vertices + [self.vertices[0]]],
-                 [v.y for v in self.vertices + [self.vertices[0]]])
+    def plot(self, subplot=None):
+        if subplot is None:
+            plt.plot([v.x for v in self.vertices + [self.vertices[0]]],
+                     [v.y for v in self.vertices + [self.vertices[0]]])
+        else:
+            plt.subplot(subplot).plot([v.x for v in self.vertices + [self.vertices[0]]],
+                     [v.y for v in self.vertices + [self.vertices[0]]])
 
     def __repr__(self):
         return "\t".join(["(%s, %s)" % (v.x, v.y) for v in self.vertices])

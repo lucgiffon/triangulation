@@ -23,12 +23,6 @@ class CircumCircle:
     def cosine(self, p1, p2, p3):
 
         d1, d2, d3 = self.distance(p2, p3), self.distance(p1, p3), self.distance(p1, p2)
-        if d1 == 0:
-            print("d1", p2, p3)
-        if d3 == 0:
-            print("d3", p1, p2)
-        if d1 * d3 == 0:
-            print("d1*d3", p1, p2, p3)
         return (d1 * d1 + d3 * d3 - d2 * d2) / (2 * d1 * d3)
 
     # Cartesian coordinates of the point whose barycentric coordinates
@@ -73,6 +67,7 @@ class CircumCircle:
                      [[[1, 1, 1, 0]]]])
 
         b = np.hstack((np.sum(pts * pts, axis=1), [1]))
+
         x = np.linalg.solve(A, b)
         bary_coords = x[:-1]
         center = np.dot(bary_coords, pts)

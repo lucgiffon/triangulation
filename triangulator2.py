@@ -13,10 +13,10 @@ Options:
   --show-example  Show example of valid triangulation
 """
 
-import math
 import random
 import copy
 import time
+import itertools
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -69,19 +69,22 @@ class Triangulator:
         self.__spindex = Index(bbox=(*(self.__bound * 3 * np.array((-1, -1))),
                               *(self.__bound * 3 * np.array((1, 1)))))
         self.__spindex.insert(t1, t1.bbox)
-        print(t1.bbox)
         self.__spindex.insert(t2, t2.bbox)
         # https://en.wikipedia.org/wiki/Bowyer%E2%80%93Watson_algorithm
         # https://github.com/jmespadero/pyDelaunay2D/
         # https://en.wikipedia.org/wiki/Quadtree#Point_quadtree
         # https://github.com/karimbahgat/Pyqtree
 
-    def plot(self):
-        plt.plot([node.x for node in self.__nodes if node not in self.__initializing_nodes],
-                 [node.y for node in self.__nodes if node not in self.__initializing_nodes], 'o')
+    def plot(self, subplot=None):
+        if subplot is None:
+            plt.plot([node.x for node in self.__nodes if node not in self.__initializing_nodes],
+                     [node.y for node in self.__nodes if node not in self.__initializing_nodes], 'o')
+        else:
+            plt.subplot(subplot).plot([node.x for node in self.__nodes if node not in self.__initializing_nodes],
+                     [node.y for node in self.__nodes if node not in self.__initializing_nodes], 'o')
         for triangle in self.__tracker:
             if len(set(triangle.vertices).intersection(set(self.__initializing_nodes))) == 0:
-                triangle.plot()
+                triangle.plot(subplot)
 
     def legalize_edge(self, new_node, edge):
         """
@@ -187,7 +190,6 @@ class Triangulator:
         self.__nodes.append(node)
 
         # search triangle whose circumcircle contains p
-        # todo quad tree optimization
         candidate_bad_designed_triangles = set(self.__spindex.intersect((node.x, node.x, node.y, node.y)))
         # print(len(candidate_bad_designed_triangles.intersection(self.__tracker_set)), candidate_bad_designed_triangles.intersection(self.__tracker_set))
         # print(len(self.__tracker_set))
@@ -346,6 +348,17 @@ class Triangulator:
                     self.legalize_edge(new_node,
                                        (side_vertexes[1], opposite_vertex))
 
+def generate_list_of_points(size, min_, max_):
+    range_ = range(int(min_), int(max_))
+    points = list(itertools.product(range_, range_))
+
+    N = (max_ - min_)**2
+    L =  N - size
+    i = 1
+    while i <= L:
+        del points[random.randint(0, N - i)]
+        i += 1
+    return points
 
 if __name__ == "__main__":
 
@@ -358,15 +371,7 @@ if __name__ == "__main__":
     triangulation = Triangulator(BOUND)
 
     # create dots to triangulate
-    X, Y = np.array(range(N)), np.array(range(N))
-    for i in range(N):
-        x = random.uniform(-BOUND, BOUND)
-        y = random.uniform(-BOUND, BOUND)
-        while (x in X and y in Y):
-            x = random.uniform(-BOUND, BOUND)
-            y = random.uniform(-BOUND, BOUND)
-        X[i] = x
-        Y[i] = y
+    X, Y = zip(*generate_list_of_points(N, -BOUND, BOUND))
 
     start = time.time()
     for i in range(N):
