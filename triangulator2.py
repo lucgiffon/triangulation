@@ -75,6 +75,21 @@ class Triangulator:
         # https://en.wikipedia.org/wiki/Quadtree#Point_quadtree
         # https://github.com/karimbahgat/Pyqtree
 
+        plt.subplot(111).set_xlim([-BOUND * 3 * 1.1, BOUND * 3 * 1.1])
+        plt.subplot(111).set_ylim([-BOUND * 3 * 1.1, BOUND * 3 * 1.1])
+        ax = plt.gca()
+        ax.set_aspect('equal', adjustable='box')
+        ax.spines['right'].set_color('none')
+        ax.spines['top'].set_color('none')
+        ax.xaxis.set_ticks_position('bottom')
+        ax.spines['bottom'].set_position(('data', 0))
+        ax.yaxis.set_ticks_position('left')
+        ax.spines['left'].set_position(('data', 0))
+        plt.xticks([])
+        plt.yticks([])
+        self.plot_with_init_nodes()
+        plt.show()
+
     def plot(self, subplot=None):
         if subplot is None:
             plt.plot([node.x for node in self.__nodes if node not in self.__initializing_nodes],
@@ -85,6 +100,16 @@ class Triangulator:
         for triangle in self.__tracker:
             if len(set(triangle.vertices).intersection(set(self.__initializing_nodes))) == 0:
                 triangle.plot(subplot)
+
+    def plot_with_init_nodes(self, subplot=None):
+        if subplot is None:
+            plt.plot([node.x for node in self.__nodes],
+                     [node.y for node in self.__nodes], 'o')
+        else:
+            plt.subplot(subplot).plot([node.x for node in self.__nodes],
+                                      [node.y for node in self.__nodes], 'o')
+        for triangle in self.__tracker:
+            triangle.plot(subplot)
 
     def legalize_edge(self, new_node, edge):
         """
@@ -366,6 +391,9 @@ if __name__ == "__main__":
     N = int(arguments["NPOINTS"])
     BOUND = float(arguments["BOUND"])
     SHOW_EXAMPLE = arguments["--show-example"]
+
+    if int(BOUND) ** 2 <= N:
+        exit("Too mutch point asked in the specified area. Please, select a number of points lesser than the square of your bound.")
 
     # create triangulation
     triangulation = Triangulator(BOUND)

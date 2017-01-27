@@ -45,7 +45,7 @@ class Triangle:
     def plot(self, subplot=None):
         if subplot is None:
             plt.plot([v.x for v in self.vertices + [self.vertices[0]]],
-                     [v.y for v in self.vertices + [self.vertices[0]]])
+                     [v.y for v in self.vertices + [self.vertices[0]]], linewidth=2)
         else:
             plt.subplot(subplot).plot([v.x for v in self.vertices + [self.vertices[0]]],
                      [v.y for v in self.vertices + [self.vertices[0]]])
