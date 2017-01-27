@@ -20,15 +20,12 @@ import itertools
 
 import matplotlib.pyplot as plt
 import numpy as np
-import networkx as nx
 import matplotlib.delaunay as triang
 from docopt import docopt
 from pyqtree import Index
 
-import circumcircle
 from node import Node
 from triangle import Triangle
-from triangle_tracker import TriangleTracker
 
 
 class Triangulator:
@@ -95,8 +92,9 @@ class Triangulator:
             plt.plot([node.x for node in self.__nodes if node not in self.__initializing_nodes],
                      [node.y for node in self.__nodes if node not in self.__initializing_nodes], 'o')
         else:
-            plt.subplot(subplot).plot([node.x for node in self.__nodes if node not in self.__initializing_nodes],
-                     [node.y for node in self.__nodes if node not in self.__initializing_nodes], 'o')
+            plt.subplot(subplot).plot(
+                [node.x for node in self.__nodes if node not in self.__initializing_nodes],
+                [node.y for node in self.__nodes if node not in self.__initializing_nodes], 'o')
         for triangle in self.__tracker:
             if len(set(triangle.vertices).intersection(set(self.__initializing_nodes))) == 0:
                 triangle.plot(subplot)
@@ -110,104 +108,6 @@ class Triangulator:
                                       [node.y for node in self.__nodes], 'o')
         for triangle in self.__tracker:
             triangle.plot(subplot)
-
-    def legalize_edge(self, new_node, edge):
-        """
-        Legalize the edge if it is illegal.
-
-        :param new_node: The recently added node of the graph.
-        :param edge: The edge that is maybe not legal
-        """
-        #!print("Processing edge: %s\t%s" % (edge[0], edge[1]))
-        if self.is_edge_illegal(new_node, edge):
-            # Get the triangles involved in the illegal edge
-            triangles = self.__tracker.get_triangles_containing_edge(edge)
-
-            assert len(triangles) == 2
-
-            # Get the point_k. That is, the fourth point after the new node and the two nodes
-            # of the edge
-            opposite_vertexes = set(triangles[0].vertices + triangles[1].vertices).difference(set(edge))
-            opposite_vertexes.remove(new_node)
-            point_k = opposite_vertexes.pop()
-            self.remove_edge(edge[0], edge[1])
-            self.add_edge(new_node, point_k)
-
-            new_triangle_1 = Triangle(point_k, new_node, edge[0])
-            new_triangle_2 = Triangle(point_k, new_node, edge[1])
-
-            for tri in triangles:
-                self.__tracker.add_edge(tri, new_triangle_1)
-                self.__tracker.add_edge(tri, new_triangle_2)
-
-            self.legalize_edge(new_node, (point_k, edge[0]))
-            self.legalize_edge(new_node, (point_k, edge[1]))
-        else:
-            pass
-
-    def is_edge_illegal(self, new_node, edge):
-
-        # get the triangles which contains the candidate edge
-        triangles = self.__tracker.get_triangles_containing_edge(edge)
-        assert len(triangles) == 1 or len(triangles) == 2
-
-        for tri in triangles:
-            if new_node in tri.vertices:
-                # if the new node is in the triangle, then this is not an interesting
-                # triangle: we are looking for the quad_point (point at the opposite side
-                # of the edge from the new_node).
-                continue
-            else:
-                pass
-            quad_point = set(tri.vertices).difference(set(edge)).pop()
-            if edge[0].ident < 0 and edge[1].ident < 0:
-                return False
-            # if none of the 4 points is negative, then it is the normal case, we only check
-            # whether the quad_point
-            # lies inside the circumcircle of the triangle tri
-            # elif min([edge[0].ident, edge[1].ident, new_node.ident, quad_point.ident]) > 0:
-            elif True:
-                cc = circumcircle.CircumCircle((new_node.x, new_node.y), (edge[0].x, edge[0].y),
-                                               (edge[1].x, edge[1].y))
-                # using the pythagore theorem, we test if the quad_point lies inside the circumcircle cc
-                if (quad_point.x - cc.center[0]) ** 2 + (quad_point.y - cc.center[1]) ** 2 < cc.radius ** 2:
-                    # if so, the edge is illegal
-                    return True
-                else:
-                    return False
-
-            # if only one node of the edge is negative and nor the new_node nor the quad_point is,
-            # then the edge is illegal: there shouldn't be an edge between a special node and a
-            # normal node
-            elif (edge[0].ident < 0 or edge[1].ident < 0) and not (new_node.ident < 0 or quad_point.ident < 0):
-                return True
-            # if no node of the edge is negative and either the new_node or the quad_point is negative
-            # then the edge is legal because we do not want edges between a node of the big triangle
-            # and a normal node
-            elif not (edge[0].ident < 0 or edge[1].ident < 0) and (new_node.ident < 0 or quad_point.ident < 0):
-                return False
-
-            # if there is one node of the big triangle and the quad_point negative, then, special case
-            elif (edge[0].ident < 0 or edge[1].ident < 0) and (new_node.ident < 0 or quad_point.ident < 0):
-                # p1 and p2 are the two negative nodes
-                if edge[0].ident < 0:
-                    p1 = edge[0]
-                else:
-                    p1 = edge[1]
-                if new_node.ident < 0:
-                    p2 = new_node
-                else:
-                    p2 = quad_point
-
-                # lexicographic ordering
-                if p1.ident < p2.ident:
-                    return False
-                else:
-                    return True
-
-            else:
-                raise Exception("There is an unhandled case in the method Triangulator.is_edge_illegal()")
-        # return False
 
     def add_node(self, node):
         node = Node(*node)
@@ -285,93 +185,9 @@ class Triangulator:
             self.__tracker[triangle][1] = new_triangles[(i+1) % N]
             self.__tracker[triangle][2] = new_triangles[(i-1) % N]
 
-
         # self.plot()
         # plt.show()
 
-    def delaunay_triangulation(self):
-        """
-        Triangulate the nodes of the graph by adding edges between them.
-        """
-
-        # create the nodes corresponding to the big triangle
-        p1 = Node(x=3 * self.__bound, y=0, ident=-1)
-        p2 = Node(x=0, y=3 * self.__bound, ident=-2)
-        p3 = Node(x=-3 * self.__bound, y=-3 * self.__bound, ident=-3)
-        init_triangle = [p1, p2, p3]
-        self.add_node(p1)
-        self.add_node(p2)
-        self.add_node(p3)
-        self.add_edge(p1, p2)
-        self.add_edge(p2, p3)
-        self.add_edge(p1, p3)
-
-        # the tracker is initialized with the big triangle
-        self.__tracker.add_node(Triangle(*init_triangle))
-
-        for new_node in set(self.nodes()).difference(set(init_triangle)):
-            upper_triangles = self.__tracker.get_triangle_containing_node(new_node)
-            assert len(upper_triangles) == 1 or len(upper_triangles) == 2
-
-            if len(upper_triangles) == 1:
-                for node_upper_triangle in upper_triangles[0].vertices:
-                    # create a new edge between the new_node and each vertex of the upper triangle
-                    self.add_edge(node_upper_triangle, new_node)
-
-                # Creating the new triangles
-                new_tri_1 = Triangle(new_node,
-                                     upper_triangles[0].vertices[0], upper_triangles[0].vertices[1])
-                new_tri_2 = Triangle(new_node,
-                                     upper_triangles[0].vertices[0], upper_triangles[0].vertices[2])
-                new_tri_3 = Triangle(new_node,
-                                     upper_triangles[0].vertices[1], upper_triangles[0].vertices[2])
-                # keep track of these new triangles
-                self.__tracker.add_node(new_tri_1)
-                self.__tracker.add_node(new_tri_2)
-                self.__tracker.add_node(new_tri_3)
-                # keep track of the ancestors of this new triangle
-                self.__tracker.add_edge(upper_triangles[0], new_tri_1)
-                self.__tracker.add_edge(upper_triangles[0], new_tri_2)
-                self.__tracker.add_edge(upper_triangles[0], new_tri_3)
-
-                # the new triangle may have induced illegal edges. Legalize them.
-                # The illegal edge should be the edge at the opposite of the new_node
-                # on each triangle.
-                self.legalize_edge(new_node,
-                                   (upper_triangles[0].vertices[0], upper_triangles[0].vertices[1]))
-                self.legalize_edge(new_node,
-                                   (upper_triangles[0].vertices[0], upper_triangles[0].vertices[2]))
-                self.legalize_edge(new_node,
-                                   (upper_triangles[0].vertices[1], upper_triangles[0].vertices[2]))
-            else:
-                side_vertexes = tuple(set(upper_triangles[0].vertices).intersection(set(upper_triangles[1].vertices)))
-                self.remove_edge(side_vertexes[0], side_vertexes[1])
-                self.add_edge(new_node, side_vertexes[0])
-                self.add_edge(new_node, side_vertexes[1])
-
-                for triangle in upper_triangles:
-                    opposite_vertex = set(triangle.vertices).difference(set(side_vertexes)).pop()
-                    self.add_edge(opposite_vertex, new_node)
-
-                    # Creating the new triangles
-                    new_tri_1 = Triangle(new_node,
-                                         side_vertexes[0], opposite_vertex)
-                    new_tri_2 = Triangle(new_node,
-                                         side_vertexes[1], opposite_vertex)
-                    # keep track of these new triangles
-                    self.__tracker.add_node(new_tri_1)
-                    self.__tracker.add_node(new_tri_2)
-                    # keep track of the ancestors of this new triangle
-                    self.__tracker.add_edge(triangle, new_tri_1)
-                    self.__tracker.add_edge(triangle, new_tri_2)
-
-                    # the new triangle may have induced illegal edges. Legalize them.
-                    # The illegal edge should be the edge at the opposite of the new_node
-                    # on each triangle.
-                    self.legalize_edge(new_node,
-                                       (side_vertexes[0], opposite_vertex))
-                    self.legalize_edge(new_node,
-                                       (side_vertexes[1], opposite_vertex))
 
 def generate_list_of_points(size, min_, max_):
     range_ = range(int(min_), int(max_))
@@ -413,12 +229,6 @@ if __name__ == "__main__":
     triangulation.plot()
     plt.show()
 
-    # triangulation.delaunay_triangulation()
-    #
-
-    # triangulation.plot()
-    # plt.show()
-    #
     #############################################################
     # # # # # test code in order to compare the results # # # # #
     #############################################################
