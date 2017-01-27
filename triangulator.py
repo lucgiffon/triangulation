@@ -72,20 +72,20 @@ class Triangulator:
         # https://en.wikipedia.org/wiki/Quadtree#Point_quadtree
         # https://github.com/karimbahgat/Pyqtree
 
-        plt.subplot(111).set_xlim([-BOUND * 3 * 1.1, BOUND * 3 * 1.1])
-        plt.subplot(111).set_ylim([-BOUND * 3 * 1.1, BOUND * 3 * 1.1])
-        ax = plt.gca()
-        ax.set_aspect('equal', adjustable='box')
-        ax.spines['right'].set_color('none')
-        ax.spines['top'].set_color('none')
-        ax.xaxis.set_ticks_position('bottom')
-        ax.spines['bottom'].set_position(('data', 0))
-        ax.yaxis.set_ticks_position('left')
-        ax.spines['left'].set_position(('data', 0))
-        plt.xticks([])
-        plt.yticks([])
-        self.plot_with_init_nodes()
-        plt.show()
+        # plt.subplot(111).set_xlim([-BOUND * 3 * 1.1, BOUND * 3 * 1.1])
+        # plt.subplot(111).set_ylim([-BOUND * 3 * 1.1, BOUND * 3 * 1.1])
+        # ax = plt.gca()
+        # ax.set_aspect('equal', adjustable='box')
+        # ax.spines['right'].set_color('none')
+        # ax.spines['top'].set_color('none')
+        # ax.xaxis.set_ticks_position('bottom')
+        # ax.spines['bottom'].set_position(('data', 0))
+        # ax.yaxis.set_ticks_position('left')
+        # ax.spines['left'].set_position(('data', 0))
+        # plt.xticks([])
+        # plt.yticks([])
+        # self.plot_with_init_nodes()
+        # plt.show()
 
     def plot(self, subplot=None):
         if subplot is None:
@@ -190,16 +190,11 @@ class Triangulator:
 
 
 def generate_list_of_points(size, min_, max_):
-    range_ = range(int(min_), int(max_))
-    points = list(itertools.product(range_, range_))
-
-    N = (max_ - min_)**2
-    L =  N - size
-    i = 1
-    while i <= L:
-        del points[random.randint(0, N - i)]
-        i += 1
+    points = {(random.randint(min_, max_), random.randint(min_, max_)) for i in range(N)}
+    while len(points) < size:
+        points |= {(random.randint(min_, max_), random.randint(min_, max_))}
     return points
+    # points = list(list(x) for x in points)
 
 if __name__ == "__main__":
 
